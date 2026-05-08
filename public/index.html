@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RCSA Local Flow Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>RCSA Local Flow Lab</h1>
+      <p>Control local para probar Preprocessor, Planner, Interviewer y la orquestacion simulada.</p>
+    </div>
+    <div class="topbar-actions">
+      <button id="refreshServicesBtn" class="secondary">Actualizar</button>
+      <button id="startAllBtn">Iniciar todo</button>
+      <button id="stopAllBtn" class="danger">Detener todo</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="ops-dashboard">
+      <div class="ops-copy">
+        <span class="eyebrow">Demo local end-to-end</span>
+        <h2>Operacion del flujo RCSA</h2>
+        <p>Configura rutas, levanta servicios, ejecuta el subproceso y monitorea cada salto entre API, workers, eventos e infraestructura simulada.</p>
+      </div>
+      <div class="ops-cards">
+        <div class="ops-card">
+          <span>Servicios</span>
+          <strong id="opsServices">0/5</strong>
+          <small id="opsServicesDetail">Esperando health</small>
+        </div>
+        <div class="ops-card">
+          <span>Flujo activo</span>
+          <strong id="opsFlow">Sin flujo</strong>
+          <small id="opsFlowDetail">No hay corrida</small>
+        </div>
+        <div class="ops-card">
+          <span>Etapa actual</span>
+          <strong id="opsCurrent">-</strong>
+          <small id="opsCurrentDetail">Mapa pendiente</small>
+        </div>
+        <div class="ops-card">
+          <span>Observabilidad</span>
+          <strong id="opsObservability">0 eventos</strong>
+          <small id="opsObservabilityDetail">0 I/O registrados</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage-group">
+      <div class="stage-header">
+        <span class="stage-index">1</span>
+        <div>
+          <h2>Preparar entorno local</h2>
+          <p>Primero deja apuntadas las rutas de cada repo y confirma que los cinco servicios respondan health OK.</p>
+        </div>
+      </div>
+      <div class="section-grid setup-grid">
+        <section class="panel">
+          <div class="section-title">
+            <h2>Servicios locales</h2>
+            <div class="status-cluster">
+              <span id="servicesReadinessBadge" class="badge">0/5 listos</span>
+              <span id="serverStatus" class="badge">conectando</span>
+            </div>
+          </div>
+          <div id="servicesReadinessSummary" class="readiness-summary muted">Esperando estado de servicios.</div>
+          <div id="servicesGrid" class="services-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>Rutas locales</h2>
+            <span id="pathsStatus" class="badge">sin revisar</span>
+          </div>
+          <form id="pathsForm" class="paths-form">
+            <label class="path-field">
+              Preprocessor cwd
+              <div class="path-input-row">
+                <input name="preprocessor" spellcheck="false" required>
+                <span id="preprocessorPathStatus" class="badge">-</span>
+              </div>
+            </label>
+            <label class="path-field">
+              Planner cwd
+              <div class="path-input-row">
+                <input name="planner" spellcheck="false" required>
+                <span id="plannerPathStatus" class="badge">-</span>
+              </div>
+            </label>
+            <label class="path-field">
+              Interviewer cwd
+              <div class="path-input-row">
+                <input name="interviewer" spellcheck="false" required>
+                <span id="interviewerPathStatus" class="badge">-</span>
+              </div>
+            </label>
+            <div class="path-actions">
+              <button type="submit">Guardar rutas</button>
+              <button id="reloadPathsBtn" type="button" class="secondary">Recargar</button>
+            </div>
+          </form>
+          <div id="localConfigPath" class="config-file muted"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="stage-group">
+      <div class="stage-header">
+        <span class="stage-index">2</span>
+        <div>
+          <h2>Ejecutar y probar</h2>
+          <p>Ejecuta el flujo completo desde el inicio o salta a una etapa intermedia usando datos existentes.</p>
+        </div>
+      </div>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Progreso de extremo a extremo</h2>
+          <span class="hint">Estado resumido desde inicio hasta cierre</span>
+        </div>
+        <div id="progressRail" class="progress-rail"></div>
+      </section>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Mapa tecnico del flujo</h2>
+          <span class="hint">Cada tarjeta muestra prod arriba y local abajo</span>
+        </div>
+        <div class="flow-map" id="flowMap"></div>
+      </section>
+      <section class="layout-two execution-grid">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Nuevo flujo</h2>
+            <span class="hint">Viaje completo local</span>
+          </div>
+          <form id="flowForm" class="flow-form">
+            <label>
+              Subproceso
+              <input name="subprocess_code" value="S03808" required>
+            </label>
+            <label>
+              Responsable
+              <input name="responsible_name" value="Responsable del Subproceso">
+            </label>
+            <label>
+              Email
+              <input name="responsible_email" value="responsable@empresa.com">
+            </label>
+            <label>
+              Bucket fuente
+              <input name="source_bucket" value="agente-automatizacion-riesgos">
+            </label>
+            <label class="checkbox-row">
+              <input name="include_mof" type="checkbox">
+              Incluir MOF
+            </label>
+            <label>
+              MOF codes
+              <input name="mof_codes" placeholder="MOF-001,MOF-002">
+            </label>
+            <div class="form-actions">
+              <button id="checkSubprocessBtn" type="button" class="secondary">Revisar datos existentes</button>
+              <button id="flowSubmitBtn" type="submit" disabled>Iniciar flujo</button>
+            </div>
+            <div id="flowReadinessHint" class="flow-readiness muted">Esperando servicios listos.</div>
+          </form>
+          <div id="subprocessHistory" class="subprocess-history muted">No se ha consultado la DB para este subproceso.</div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">
+            <h2>Ejecutar desde una etapa</h2>
+            <span class="hint">Para probar cambios puntuales</span>
+          </div>
+          <form id="partialForm" class="partial-form">
+            <label>
+              Etapa
+              <select name="action">
+                <option value="create-planner-job">Crear job Planner desde run preprocessor</option>
+                <option value="wait-preprocessor">Leer estado preprocessor existente</option>
+                <option value="process-planner-worker">Ejecutar Planner worker</option>
+                <option value="finalize-preprocessor">Finalizar run preprocessor</option>
+                <option value="fetch-planner-result">Leer resultado Planner</option>
+                <option value="resolve-launches">Resolver launches Interviewer</option>
+              </select>
+            </label>
+            <label>
+              Subproceso
+              <input name="subprocess_code" value="S03808">
+            </label>
+            <label>
+              Preprocessor run
+              <input name="preprocessor_run_id" placeholder="UUID subprocess_runs.id">
+            </label>
+            <label>
+              Planner job
+              <input name="job_id" placeholder="UUID interview_job_runs.job_id">
+            </label>
+            <label>
+              Plan run
+              <input name="plan_run_id" placeholder="UUID interview_plan_runs.id">
+            </label>
+            <label>
+              Correlation
+              <input name="correlation_id" placeholder="corr-local-...">
+            </label>
+            <div class="partial-actions">
+              <button id="useActiveFlowBtn" type="button" class="secondary">Usar flujo activo</button>
+              <button id="useDbLatestBtn" type="button" class="secondary">Usar ultimo dato DB</button>
+              <button type="submit">Ejecutar etapa</button>
+            </div>
+          </form>
+          <div id="partialHint" class="partial-hint muted">Puedes completar IDs manualmente o poblarlos desde el flujo activo / consulta DB.</div>
+        </div>
+      </section>
+    </section>
+
+    <section class="stage-group">
+      <div class="stage-header">
+        <span class="stage-index">3</span>
+        <div>
+          <h2>Monitorear corrida</h2>
+          <p>Sigue el estado vivo del flujo, la timeline de acciones, eventos emitidos y tiempos por componente.</p>
+        </div>
+      </div>
+      <section class="layout-two monitor-grid">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Flujo activo</h2>
+            <span id="flowStatus" class="badge">sin flujo</span>
+          </div>
+          <div class="flow-controls">
+            <button id="newFlowViewBtn" type="button" class="secondary">Nueva corrida limpia</button>
+            <button id="refreshFlowsBtn" type="button" class="secondary">Actualizar historial</button>
+          </div>
+          <div id="flowSummary" class="summary muted">No hay una corrida activa.</div>
+          <div id="launchLinks" class="launch-links"></div>
+          <div class="flow-history-header">
+            <strong>Historial de corridas</strong>
+            <span id="flowHistoryCount" class="hint">0 corridas</span>
+          </div>
+          <div id="flowHistory" class="flow-history muted">Aun no hay corridas registradas.</div>
+        </div>
+        <div class="panel">
+          <div class="section-title">
+            <h2>Tiempos</h2>
+            <span id="timerStatus" class="badge">sin flujo</span>
+          </div>
+          <div id="timerSummary" class="timer-summary muted">Inicia un flujo para medir cada etapa.</div>
+          <div id="timerDashboard" class="timer-dashboard"></div>
+        </div>
+      </section>
+      <section class="layout-two wide-left">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Timeline</h2>
+            <span id="timelineCount" class="hint">0 pasos</span>
+          </div>
+          <div id="timeline" class="timeline"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">
+            <h2>Eventos</h2>
+            <span id="eventsCount" class="hint">0 eventos</span>
+          </div>
+          <div id="eventsList" class="events-list"></div>
+        </div>
+      </section>
+    </section>
+
+    <section class="stage-group">
+      <div class="stage-header">
+        <span class="stage-index">4</span>
+        <div>
+          <h2>Inspeccionar datos</h2>
+          <p>Revisa primero los outputs legibles y luego compara entradas, salidas, payloads hacia AWS y tablas PostgreSQL.</p>
+        </div>
+      </div>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Outputs legibles</h2>
+          <span id="readableOutputsStatus" class="hint">Sin datos cargados</span>
+        </div>
+        <div class="readable-grid">
+          <section class="readable-panel">
+            <div class="readable-panel-head">
+              <h3>Markdown extraido</h3>
+              <span id="documentMarkdownCount" class="badge">0 documentos</span>
+            </div>
+            <div id="documentMarkdownOutputs" class="readable-list muted">Actualiza la DB para ver el Markdown extraido.</div>
+          </section>
+          <section class="readable-panel">
+            <div class="readable-panel-head">
+              <h3>Planner: guiones y topicos</h3>
+              <span id="plannerOutputsCount" class="badge">0 items</span>
+            </div>
+            <div id="plannerReadableOutputs" class="readable-list muted">Actualiza la DB para ver guiones y topicos.</div>
+          </section>
+        </div>
+        <div id="readableInterviewUrl" class="readable-interview-url muted">La URL relativa de entrevista aparecera cuando Interviewer resuelva el launch token.</div>
+      </section>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Input / Output por etapa</h2>
+          <span id="ioCount" class="hint">0 registros</span>
+        </div>
+        <div id="ioRecords" class="io-records"></div>
+      </section>
+      <section class="layout-two wide-left">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Estados hacia AWS</h2>
+            <span class="hint">Lo que Workflows enviaria en produccion</span>
+          </div>
+          <div id="awsStates" class="aws-states"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">
+            <h2>PostgreSQL</h2>
+            <button id="refreshDbBtn" class="secondary">Actualizar DB</button>
+          </div>
+          <div id="postgresSummary" class="postgres-summary muted">Sin flujo activo.</div>
+        </div>
+      </section>
+    </section>
+
+    <section class="stage-group">
+      <div class="stage-header">
+        <span class="stage-index">5</span>
+        <div>
+          <h2>Depurar</h2>
+          <p>Usa logs y payload seleccionado para entender fallas sin salir de la pantalla.</p>
+        </div>
+      </div>
+      <section class="layout-two">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Logs</h2>
+            <select id="logServiceFilter">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <pre id="logs" class="logs"></pre>
+        </div>
+
+        <div class="panel">
+          <div class="section-title">
+            <h2>Payload seleccionado</h2>
+            <span class="hint">Click en mapas, timeline, eventos o I/O</span>
+          </div>
+          <pre id="payloadViewer" class="payload-viewer">{}</pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

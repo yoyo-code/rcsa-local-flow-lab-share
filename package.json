@@ -1,0 +1,15 @@
+{
+  "name": "rcsa-local-flow-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local control plane and visual lab for the RCSA event-driven flow.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "prepare:share": "node scripts/prepare-share.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,31 @@
+# Runtime local del Flow Lab
+runtime/
+*.log
+
+# Configuracion personal / secretos
+local.config.json
+.env
+.env.*
+!.env.example
+
+# Dependencias y caches
+node_modules/
+.uv/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Artefactos temporales
+tmp/
+temp/
+*.tmp

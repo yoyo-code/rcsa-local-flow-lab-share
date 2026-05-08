@@ -1,0 +1,88 @@
+{
+  "host": "127.0.0.1",
+  "port": 4400,
+  "pollIntervalMs": 2500,
+  "flowTimeoutMinutes": 120,
+  "dbInspector": {
+    "enabled": true,
+    "cwd": ""
+  },
+  "repos": {
+    "preprocessor": "",
+    "planner": "",
+    "interviewer": ""
+  },
+  "services": {
+    "preprocessor-api": {
+      "label": "Preprocessor API",
+      "cwd": "",
+      "url": "http://127.0.0.1:8010",
+      "health": "http://127.0.0.1:8010/healthz",
+      "command": "uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8010 --reload",
+      "env": {
+        "TASK_DISPATCH_BACKEND": "local_http",
+        "LOCAL_TASKS_WORKER_URL": "http://127.0.0.1:8011/internal/tasks/process",
+        "RESUME_INCOMPLETE_TASKS": "false",
+        "EVENT_DRIVEN_MODE": "true",
+        "LOCAL_EVENT_SINK_URL": "http://127.0.0.1:4400/api/events",
+        "SUBPROCESS_AUTO_DISPATCH_PLANNER": "false"
+      }
+    },
+    "preprocessor-worker": {
+      "label": "Preprocessor Worker",
+      "cwd": "",
+      "url": "http://127.0.0.1:8011",
+      "health": "http://127.0.0.1:8011/healthz",
+      "command": "uv run uvicorn apps.worker.main:app --host 127.0.0.1 --port 8011 --reload",
+      "env": {
+        "EVENT_DRIVEN_MODE": "true",
+        "LOCAL_EVENT_SINK_URL": "http://127.0.0.1:4400/api/events"
+      }
+    },
+    "planner-api": {
+      "label": "Planner API",
+      "cwd": "",
+      "url": "http://127.0.0.1:8020",
+      "health": "http://127.0.0.1:8020/health",
+      "command": "uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8020 --reload",
+      "env": {
+        "INTERVIEW_JOB_DISPATCH_BACKEND": "cloud_tasks",
+        "WORKFLOW_MANAGED_DISPATCH": "true",
+        "EVENT_DRIVEN_MODE": "true",
+        "LOCAL_EVENT_SINK_URL": "http://127.0.0.1:4400/api/events",
+        "BIGQUERY_PROJECT_ID": "rs-nprd-dlk-data-rwz-51a6",
+        "BIGQUERY_DATASET": "ue1proddbardsriesgo001__db_bo_riesgo",
+        "BIGQUERY_BILLING_PROJECT_ID": "rs-nprd-dlk-saia-gnai-dev-7251",
+        "BIGQUERY_LOCATION": "us-east4"
+      }
+    },
+    "planner-worker": {
+      "label": "Planner Worker",
+      "cwd": "",
+      "url": "http://127.0.0.1:8021",
+      "health": "http://127.0.0.1:8021/health",
+      "command": "uv run uvicorn apps.worker.main:app --host 127.0.0.1 --port 8021 --reload",
+      "env": {
+        "INTERVIEW_JOB_DISPATCH_BACKEND": "cloud_tasks",
+        "WORKFLOW_MANAGED_DISPATCH": "true",
+        "EVENT_DRIVEN_MODE": "true",
+        "LOCAL_EVENT_SINK_URL": "http://127.0.0.1:4400/api/events",
+        "BIGQUERY_PROJECT_ID": "rs-nprd-dlk-data-rwz-51a6",
+        "BIGQUERY_DATASET": "ue1proddbardsriesgo001__db_bo_riesgo",
+        "BIGQUERY_BILLING_PROJECT_ID": "rs-nprd-dlk-saia-gnai-dev-7251",
+        "BIGQUERY_LOCATION": "us-east4"
+      }
+    },
+    "interviewer": {
+      "label": "Interviewer",
+      "cwd": "",
+      "url": "http://127.0.0.1:8030",
+      "health": "http://127.0.0.1:8030/health",
+      "command": "uv run uvicorn app.main:app --host 127.0.0.1 --port 8030 --reload",
+      "env": {
+        "EVENT_DRIVEN_MODE": "true",
+        "LOCAL_EVENT_SINK_URL": "http://127.0.0.1:4400/api/events"
+      }
+    }
+  }
+}

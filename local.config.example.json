@@ -1,0 +1,27 @@
+{
+  "repos": {
+    "preprocessor": "/absolute/path/to/coe-genai-rcsa-doc-preprocessor-impl/cr-preprocessor",
+    "planner": "/absolute/path/to/coe-genai-rcsa-planner-impl",
+    "interviewer": "/absolute/path/to/coe-genai-rcsa-interviewer-impl"
+  },
+  "dbInspector": {
+    "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+  },
+  "services": {
+    "preprocessor-api": {
+      "cwd": "/absolute/path/to/coe-genai-rcsa-doc-preprocessor-impl/cr-preprocessor"
+    },
+    "preprocessor-worker": {
+      "cwd": "/absolute/path/to/coe-genai-rcsa-doc-preprocessor-impl/cr-preprocessor"
+    },
+    "planner-api": {
+      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+    },
+    "planner-worker": {
+      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+    },
+    "interviewer": {
+      "cwd": "/absolute/path/to/coe-genai-rcsa-interviewer-impl"
+    }
+  }
+}
