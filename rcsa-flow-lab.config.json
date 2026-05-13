@@ -5,22 +5,23 @@
   "flowTimeoutMinutes": 120,
   "dbInspector": {
     "enabled": true,
-    "cwd": ""
+    "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-planner-impl\\cr-planner"
   },
   "repos": {
-    "preprocessor": "",
-    "planner": "",
-    "interviewer": ""
+    "preprocessor": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-doc-preprocessor-impl\\cr-preprocessor",
+    "planner": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-planner-impl\\cr-planner",
+    "interviewer": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-interviewer-impl\\cr-interviewer"
   },
   "services": {
     "preprocessor-api": {
       "label": "Preprocessor API",
-      "cwd": "",
+      "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-doc-preprocessor-impl\\cr-preprocessor",
       "url": "http://127.0.0.1:8010",
       "health": "http://127.0.0.1:8010/healthz",
       "command": "uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8010 --reload",
       "env": {
         "TASK_DISPATCH_BACKEND": "local_http",
+        "WORKFLOW_MANAGED_DISPATCH": "true",
         "LOCAL_TASKS_WORKER_URL": "http://127.0.0.1:8011/internal/tasks/process",
         "RESUME_INCOMPLETE_TASKS": "false",
         "EVENT_DRIVEN_MODE": "true",
@@ -30,7 +31,7 @@
     },
     "preprocessor-worker": {
       "label": "Preprocessor Worker",
-      "cwd": "",
+      "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-doc-preprocessor-impl\\cr-preprocessor",
       "url": "http://127.0.0.1:8011",
       "health": "http://127.0.0.1:8011/healthz",
       "command": "uv run uvicorn apps.worker.main:app --host 127.0.0.1 --port 8011 --reload",
@@ -41,7 +42,7 @@
     },
     "planner-api": {
       "label": "Planner API",
-      "cwd": "",
+      "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-planner-impl\\cr-planner",
       "url": "http://127.0.0.1:8020",
       "health": "http://127.0.0.1:8020/health",
       "command": "uv run uvicorn apps.api.main:app --host 127.0.0.1 --port 8020 --reload",
@@ -58,7 +59,7 @@
     },
     "planner-worker": {
       "label": "Planner Worker",
-      "cwd": "",
+      "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-planner-impl\\cr-planner",
       "url": "http://127.0.0.1:8021",
       "health": "http://127.0.0.1:8021/health",
       "command": "uv run uvicorn apps.worker.main:app --host 127.0.0.1 --port 8021 --reload",
@@ -75,7 +76,7 @@
     },
     "interviewer": {
       "label": "Interviewer",
-      "cwd": "",
+      "cwd": "D:\\Proyectos\\Uma Salud\\coe-genai-rcsa-interviewer-impl\\cr-interviewer",
       "url": "http://127.0.0.1:8030",
       "health": "http://127.0.0.1:8030/health",
       "command": "uv run uvicorn app.main:app --host 127.0.0.1 --port 8030 --reload",

@@ -1,11 +1,11 @@
 {
   "repos": {
     "preprocessor": "/absolute/path/to/coe-genai-rcsa-doc-preprocessor-impl/cr-preprocessor",
-    "planner": "/absolute/path/to/coe-genai-rcsa-planner-impl",
-    "interviewer": "/absolute/path/to/coe-genai-rcsa-interviewer-impl"
+    "planner": "/absolute/path/to/coe-genai-rcsa-planner-impl/cr-planner",
+    "interviewer": "/absolute/path/to/coe-genai-rcsa-interviewer-impl/cr-interviewer"
   },
   "dbInspector": {
-    "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+    "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl/cr-planner"
   },
   "services": {
     "preprocessor-api": {
@@ -15,13 +15,13 @@
       "cwd": "/absolute/path/to/coe-genai-rcsa-doc-preprocessor-impl/cr-preprocessor"
     },
     "planner-api": {
-      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl/cr-planner"
     },
     "planner-worker": {
-      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl"
+      "cwd": "/absolute/path/to/coe-genai-rcsa-planner-impl/cr-planner"
     },
     "interviewer": {
-      "cwd": "/absolute/path/to/coe-genai-rcsa-interviewer-impl"
+      "cwd": "/absolute/path/to/coe-genai-rcsa-interviewer-impl/cr-interviewer"
     }
   }
 }

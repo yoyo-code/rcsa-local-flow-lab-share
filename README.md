@@ -28,7 +28,7 @@ El Flow Lab es compatible con Windows, macOS y Linux.
 Windows:
 
 ```powershell
-cd "C:\ruta\a\rcsa-local-flow-lab"
+cd "D:\Proyectos\Uma Salud\rcsa-local-flow-lab"
 .\START_HERE.bat
 ```
 
@@ -119,6 +119,7 @@ y reemplazar las rutas absolutas por las de su maquina.
   - Eventarc
   - Workflows
   - Cloud Tasks
+  - callbacks temporales de Workflows
   - estados/notificaciones hacia AWS
 - Muestra una timeline con el equivalente productivo y la implementacion local de cada paso.
 - Muestra `Input / Output por etapa` para comparar payload de entrada, respuesta, error y componente productivo equivalente.
@@ -178,8 +179,8 @@ Para compartir la demo con el equipo, compartir esta carpeta completa y cada per
 Las rutas que se deben configurar son los `cwd` desde donde se ejecutan los comandos:
 
 - Preprocessor: carpeta que contiene `apps/api/main.py` y `apps/worker/main.py`.
-- Planner: carpeta raiz del repo planner.
-- Interviewer: carpeta raiz del repo interviewer.
+- Planner: carpeta `cr-planner`, que contiene `apps/api/main.py` y `apps/worker/main.py`.
+- Interviewer: carpeta `cr-interviewer`, que contiene `app/main.py`.
 
 ## Modo local recomendado
 
@@ -187,6 +188,7 @@ Preprocessor API:
 
 ```text
 TASK_DISPATCH_BACKEND=local_http
+WORKFLOW_MANAGED_DISPATCH=true
 LOCAL_TASKS_WORKER_URL=http://127.0.0.1:8011/internal/tasks/process
 LOCAL_EVENT_SINK_URL=http://127.0.0.1:4400/api/events
 ```
@@ -198,6 +200,8 @@ INTERVIEW_JOB_DISPATCH_BACKEND=cloud_tasks
 WORKFLOW_MANAGED_DISPATCH=true
 LOCAL_EVENT_SINK_URL=http://127.0.0.1:4400/api/events
 ```
+
+Cuando el Flow Lab dispara workers, genera una URL temporal `POST /api/workflow-callbacks/:id` y la envia como `callbackUrl`. Preprocessor y Planner deben responder ahi para que el flujo local avance como lo haria un `events.await_callback` de Google Workflows.
 
 Interviewer:
 
@@ -286,12 +290,16 @@ En Planner tambien se crea un nuevo `job_id` y un nuevo `plan_run_id`. La tabla 
 ```text
 subprocess_code
   -> Preprocessor API
+  -> evento local preprocessor.run.started
+  -> Workflow local solicita dispatch documental
+  -> callback local de tasks documentales
   -> Preprocessor Worker local
   -> evento local preprocessor.run.completed/partial
   -> Eventarc local
   -> Workflow local
   -> Planner API
   -> Planner Worker local
+  -> callback local del planner worker
   -> evento local planner.job.completed
   -> Preprocessor planner-finalized
   -> Interviewer launch_token

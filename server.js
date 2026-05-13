@@ -25,6 +25,7 @@ const config = loadConfig();
 const services = new Map();
 const flows = new Map();
 const events = [];
+const workflowCallbacks = new Map();
 const sseClients = {
   logs: new Set(),
   events: new Set(),
@@ -161,6 +162,13 @@ async function route(req, res) {
     const payload = await readJson(req);
     const event = recordEvent(payload, { source: "http" });
     return sendJson(res, 202, event);
+  }
+
+  const workflowCallbackMatch = pathname.match(/^\/api\/workflow-callbacks\/([^/]+)$/);
+  if (workflowCallbackMatch && req.method === "POST") {
+    const payload = await readJson(req);
+    const callback = recordWorkflowCallback(workflowCallbackMatch[1], payload);
+    return sendJson(res, 202, callback);
   }
 
   if (pathname === "/api/db/summary" && req.method === "GET") {
@@ -308,6 +316,74 @@ function pathExists(value) {
   } catch {
     return false;
   }
+}
+
+function createWorkflowCallback(flow, name) {
+  const id = `cb_${randomUUID()}`;
+  const callback = {
+    id,
+    flowId: flow.id,
+    name,
+    createdAt: new Date().toISOString(),
+    url: `${callbackBaseUrl()}/api/workflow-callbacks/${id}`,
+    callbacks: [],
+  };
+  workflowCallbacks.set(id, callback);
+  return callback;
+}
+
+function callbackBaseUrl() {
+  return `http://${config.host || "127.0.0.1"}:${config.port || 4400}`;
+}
+
+function recordWorkflowCallback(callbackId, payload) {
+  const callback = workflowCallbacks.get(callbackId);
+  if (!callback) {
+    throw new Error(`Unknown workflow callback: ${callbackId}`);
+  }
+  const item = {
+    id: `workflow-callback-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    receivedAt: new Date().toISOString(),
+    ...payload,
+  };
+  callback.callbacks.push(item);
+  const flow = flows.get(callback.flowId);
+  if (flow) {
+    recordIo(flow, {
+      stage: `workflow-callback-${callback.name}`,
+      node: "workflow-local",
+      title: `Callback ${callback.name}`,
+      status: String(payload.status || "").toLowerCase() === "failed" ? "failed" : "completed",
+      input: {
+        callbackId,
+        callbackUrl: callback.url,
+      },
+      output: item,
+    });
+  }
+  return item;
+}
+
+async function waitForWorkflowCallbacks(flow, callbackId, expected, timeoutMs) {
+  const timeoutAt = Date.now() + timeoutMs;
+  let lastCount = 0;
+  while (Date.now() < timeoutAt) {
+    const callback = workflowCallbacks.get(callbackId);
+    const callbacks = callback?.callbacks || [];
+    if (callbacks.length !== lastCount) {
+      lastCount = callbacks.length;
+      step(flow, "workflow-local", "running", `Callbacks recibidos ${callbacks.length}/${expected}`, {
+        callbackId,
+        expected,
+        received: callbacks.length,
+      }, { replaceKey: `workflow-callback-wait-${callbackId}` });
+    }
+    if (callbacks.length >= expected) {
+      return callbacks.slice(0, expected);
+    }
+    await delay(config.pollIntervalMs || 2500);
+  }
+  throw new Error(`Timeout waiting for workflow callback ${callbackId}: expected=${expected}`);
 }
 
 function getService(id) {
@@ -723,6 +799,54 @@ async function runFlow(flowId) {
     output: preprocessorRun.source_snapshot_json || {},
   });
   await refreshDbSnapshot(flow);
+  const preprocessorStartedEvent = {
+    event_type: "preprocessor.run.started",
+    producer: "local-flow-lab",
+    correlation_id: flow.correlationId,
+    subprocess_code: flow.subprocessCode,
+    subprocess_run_id: flow.preprocessorRunId,
+    status: "processing_documents",
+    documents_status: "processing",
+  };
+  recordIo(flow, {
+    stage: "eventarc-preprocessor-start-route",
+    node: "eventarc-local",
+    title: "Enrutar run.started a Workflow",
+    status: "completed",
+    input: preprocessorStartedEvent,
+    output: {
+      trigger: "eventarc-local",
+      workflow: "wf-local-preprocessor-run-coordinator",
+      nextStage: "workflow-dispatch-preprocessor-tasks",
+    },
+  });
+  step(flow, "eventarc-local", "completed", "Evento preprocessor.run.started enrutado a Workflow local");
+
+  const preprocessorDispatchPayload = {
+    event_id: `evt-local-preprocessor-dispatch-${randomUUID()}`,
+    correlation_id: flow.correlationId,
+    producer: "wf-local-preprocessor-run-coordinator",
+    occurred_at: new Date().toISOString(),
+  };
+  const preprocessorCallback = createWorkflowCallback(flow, "preprocessor-document-tasks");
+  preprocessorDispatchPayload.callbackUrl = preprocessorCallback.url;
+  step(flow, "workflow-local", "running", "Solicitando dispatch de tasks documentales", preprocessorDispatchPayload);
+  const preprocessorDispatchResponse = await httpJson(
+    "preprocessor-api",
+    "POST",
+    `/internal/subprocess-runs/${flow.preprocessorRunId}/dispatch-tasks`,
+    preprocessorDispatchPayload,
+    { timeoutMs: 60000 },
+  );
+  step(flow, "workflow-local", "completed", "Workflow local solicito dispatch documental", preprocessorDispatchResponse);
+  recordIo(flow, {
+    stage: "workflow-dispatch-preprocessor-tasks",
+    node: "workflow-local",
+    title: "Workflow solicita Cloud Tasks documentales",
+    status: "completed",
+    input: preprocessorDispatchPayload,
+    output: preprocessorDispatchResponse,
+  });
   recordIo(flow, {
     stage: "cloud-tasks-preprocessor-dispatch",
     node: "cloud-tasks-preprocessor",
@@ -733,13 +857,47 @@ async function runFlow(flowId) {
       tasks: preprocessorRun.tasks || [],
     },
     output: {
-      dispatch_backend: "local_http",
+      dispatch_backend: "workflow_managed_local_http",
       dispatched: Array.isArray(preprocessorRun.tasks) ? preprocessorRun.tasks.length : null,
       workerUrl: serviceUrl("preprocessor-worker", "/internal/tasks/process"),
     },
   });
   step(flow, "cloud-tasks-preprocessor", "running", "Tasks documentales despachadas localmente");
   step(flow, "preprocessor-worker", "running", "Procesando documentos");
+
+  const expectedPreprocessorCallbacks = Number(
+    preprocessorDispatchResponse.total_tasks || (Array.isArray(preprocessorRun.tasks) ? preprocessorRun.tasks.length : 0),
+  );
+  if (expectedPreprocessorCallbacks > 0) {
+    step(flow, "workflow-local", "running", "Esperando callbacks de tasks documentales", {
+      callbackId: preprocessorCallback.id,
+      expected: expectedPreprocessorCallbacks,
+    });
+    const taskCallbacks = await waitForWorkflowCallbacks(
+      flow,
+      preprocessorCallback.id,
+      expectedPreprocessorCallbacks,
+      Number(config.flowTimeoutMinutes || 120) * 60 * 1000,
+    );
+    recordIo(flow, {
+      stage: "workflow-preprocessor-task-callbacks",
+      node: "workflow-local",
+      title: "Callbacks recibidos desde Preprocessor worker",
+      status: taskCallbacks.some((item) => item.status === "failed") ? "warning" : "completed",
+      input: {
+        callbackUrl: preprocessorCallback.url,
+        expected: expectedPreprocessorCallbacks,
+      },
+      output: {
+        received: taskCallbacks.length,
+        callbacks: taskCallbacks,
+      },
+    });
+    step(flow, "workflow-local", "completed", "Callbacks documentales recibidos", {
+      received: taskCallbacks.length,
+      expected: expectedPreprocessorCallbacks,
+    });
+  }
 
   const preprocessorStatus = await waitForPreprocessor(flow);
   step(flow, "cloud-tasks-preprocessor", "completed", "Tasks documentales consumidas por worker local");
@@ -896,10 +1054,12 @@ async function runFlow(flowId) {
   step(flow, "preprocessor-api", "completed", "Run enlazado con Planner", plannerLinkedResponse);
 
   step(flow, "cloud-tasks-planner", "running", "Despachando job al Planner worker");
+  const plannerCallback = createWorkflowCallback(flow, "planner-worker");
   const plannerWorkerPayload = {
     jobId: flow.plannerJobId,
     eventId: `evt-local-planner-task-${randomUUID()}`,
     correlationId: flow.correlationId,
+    callbackUrl: plannerCallback.url,
   };
   const dispatchPromise = httpJson(
     "planner-worker",
@@ -923,6 +1083,28 @@ async function runFlow(flowId) {
     },
   });
   step(flow, "cloud-tasks-planner", "completed", "Solicitud local enviada al Planner worker");
+
+  step(flow, "workflow-local", "running", "Esperando callback del Planner worker", {
+    callbackId: plannerCallback.id,
+  });
+  const plannerCallbacks = await waitForWorkflowCallbacks(
+    flow,
+    plannerCallback.id,
+    1,
+    Number(config.flowTimeoutMinutes || 120) * 60 * 1000,
+  );
+  recordIo(flow, {
+    stage: "workflow-planner-worker-callback",
+    node: "workflow-local",
+    title: "Callback recibido desde Planner worker",
+    status: plannerCallbacks[0]?.status === "completed" ? "completed" : "failed",
+    input: {
+      callbackUrl: plannerCallback.url,
+      jobId: flow.plannerJobId,
+    },
+    output: plannerCallbacks[0],
+  });
+  step(flow, "workflow-local", "completed", "Callback Planner recibido", plannerCallbacks[0]);
 
   const plannerStatus = await waitForPlanner(flow);
   await dispatchPromise.catch(() => null);
@@ -1246,10 +1428,12 @@ async function markPlannerLinkedFromFlow(flow) {
 
 async function processPlannerWorkerFromFlow(flow) {
   step(flow, "cloud-tasks-planner", "running", "Despachando job al Planner worker");
+  const plannerCallback = createWorkflowCallback(flow, "planner-worker-partial");
   const workerPayload = {
     jobId: flow.plannerJobId,
     eventId: `evt-local-planner-task-${randomUUID()}`,
     correlationId: flow.correlationId,
+    callbackUrl: plannerCallback.url,
   };
   const dispatchPromise = httpJson("planner-worker", "POST", "/internal/interview-jobs/process", workerPayload, {
     timeoutMs: Number(config.flowTimeoutMinutes || 120) * 60 * 1000,
@@ -1269,6 +1453,27 @@ async function processPlannerWorkerFromFlow(flow) {
     },
   });
   step(flow, "cloud-tasks-planner", "completed", "Solicitud local enviada al Planner worker");
+  step(flow, "workflow-local", "running", "Esperando callback del Planner worker", {
+    callbackId: plannerCallback.id,
+  });
+  const plannerCallbacks = await waitForWorkflowCallbacks(
+    flow,
+    plannerCallback.id,
+    1,
+    Number(config.flowTimeoutMinutes || 120) * 60 * 1000,
+  );
+  recordIo(flow, {
+    stage: "workflow-planner-worker-callback",
+    node: "workflow-local",
+    title: "Callback recibido desde Planner worker",
+    status: plannerCallbacks[0]?.status === "completed" ? "completed" : "failed",
+    input: {
+      callbackUrl: plannerCallback.url,
+      jobId: flow.plannerJobId,
+    },
+    output: plannerCallbacks[0],
+  });
+  step(flow, "workflow-local", "completed", "Callback Planner recibido", plannerCallbacks[0]);
   const plannerStatus = await waitForPlanner(flow);
   await dispatchPromise.catch(() => null);
   flow.outputs.plannerStatus = plannerStatus;
